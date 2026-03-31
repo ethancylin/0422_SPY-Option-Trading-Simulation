@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monte Carlo Measure Change Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .math-block::-webkit-scrollbar { height: 8px; }
+        .math-block::-webkit-scrollbar-track { background: #0f172a; border-radius: 4px; }
+        .math-block::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .math-block::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .accordion-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; }
+        .tab-btn.active { border-bottom: 2px solid #06b6d4; color: #cffafe; background: rgba(15, 23, 42, 0.5); }
+        
+        /* Binomial Tree SVG Lines */
+        .tree-line { stroke: #334155; stroke-width: 2; fill: none; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-300 p-4 md:p-8 font-sans selection:bg-cyan-900 selection:text-cyan-50">
+    <div class="max-w-5xl mx-auto space-y-4">
+        
+        <header class="border-b border-slate-800 pb-4 mb-6">
+            <h1 class="text-3xl font-light text-slate-100 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-500"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                Monte Carlo Simulation Demo
+            </h1>
+            <p class="text-slate-400 mt-2">Interactive demo for pricing options across different numeraires.</br>
+Using Brent Crude Oil options as an example.</br>
+Underlying security: ICE Brent Crude Oil Futures</p>
+        </header>
+
+        <!-- SECTOR 1: Parameters -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-xl">
+            <button onclick="toggleSection('sec1', 'icon1')" class="w-full px-6 py-4 flex justify-between items-center bg-slate-800/40 hover:bg-slate-800/80 text-slate-200 transition-colors rounded-t-xl focus:outline-none">
+                <h2 class="text-lg font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+                    1. Simulation Parameters
+                </h2>
+                <svg id="icon1" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform rotate-180"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div id="sec1" class="p-6 border-t border-slate-800">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-2">Contract</h3>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Brent Price (S₀)</label>
+                            <input type="number" id="S0" value="113.0" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Strike (K)</label>
+                            <input type="number" id="K" value="90.0" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Time (T)</label>
+                                <input type="number" step="0.1" id="T" value="1.0" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Paths (N)</label>
+                                <input type="number" id="N" value="500" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-2">Risk-Free Rates</h3>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">USD (r)</label>
+                            <input type="number" step="0.0001" id="r_USD" value="0.0371" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">GBP (r)</label>
+                            <input type="number" step="0.0001" id="r_GBP" value="0.0375" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">NOK (r)</label>
+                            <input type="number" step="0.0001" id="r_NOK" value="0.0400" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-2">Volatilities</h3>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Brent Vol (σ_S)</label>
+                            <input type="number" step="0.0001" id="vol_S" value="0.3213" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">GBP/USD Vol (σ_X)</label>
+                            <input type="number" step="0.0001" id="vol_GBP" value="0.0767" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">NOK/USD Vol (σ_Y)</label>
+                            <input type="number" step="0.0001" id="vol_NOK" value="0.1109" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-2">Exchange & Covariance</h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">GBP/USD (X₀)</label>
+                                <input type="number" step="0.0001" id="X_GBP0" value="0.7524" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">NOK/USD (Y₀)</label>
+                                <input type="number" step="0.001" id="X_NOK0" value="9.751" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Cov(Brent, GBP/USD)</label>
+                            <input type="number" step="0.00000001" id="cov_GBP" value="0.00051378" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Cov(Brent, NOK/USD)</label>
+                            <input type="number" step="0.00000001" id="cov_NOK" value="-0.00034633" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-cyan-500 outline-none" />
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="runBtn" class="w-full mt-6 bg-cyan-700 hover:bg-cyan-600 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <svg id="spinIcon" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span id="btnText">Run Monte Carlo Simulation</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- SECTOR 2: Graph of GBM Paths -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-xl">
+            <button onclick="toggleSection('sec2', 'icon2')" class="w-full px-6 py-4 flex justify-between items-center bg-slate-800/40 hover:bg-slate-800/80 text-slate-200 transition-colors rounded-t-xl focus:outline-none">
+                <h2 class="text-lg font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                    2. Graph of GBM Paths (All Simulated Paths)
+                </h2>
+                <svg id="icon2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform rotate-180"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div id="sec2" class="border-t border-slate-800">
+                <div class="flex border-b border-slate-800">
+                    <button class="tab-btn active flex-1 py-3 text-sm font-medium text-slate-400 transition-colors focus:outline-none" onclick="switchTab('USD')">USD Measure (ℚ_USD)</button>
+                    <button class="tab-btn flex-1 py-3 text-sm font-medium text-slate-400 transition-colors focus:outline-none border-l border-r border-slate-800" onclick="switchTab('GBP')">GBP Measure (ℚ_GBP)</button>
+                    <button class="tab-btn flex-1 py-3 text-sm font-medium text-slate-400 transition-colors focus:outline-none" onclick="switchTab('NOK')">NOK Measure (ℚ_NOK)</button>
+                </div>
+                <div class="p-6 relative h-[400px]">
+                    <div id="chartOverlay" class="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
+                        <p class="text-slate-400">Run simulation to view paths</p>
+                    </div>
+                    <canvas id="gbmChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTOR 3: Step-by-Step Change of Measure -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-xl">
+            <button onclick="toggleSection('sec3', 'icon3')" class="w-full px-6 py-4 flex justify-between items-center bg-slate-800/40 hover:bg-slate-800/80 text-slate-200 transition-colors rounded-t-xl focus:outline-none">
+                <h2 class="text-lg font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    3. Step-by-Step Change of Measure Calcs
+                </h2>
+                <svg id="icon3" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform rotate-180"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div id="sec3" class="p-6 border-t border-slate-800 space-y-4">
+                <div id="calcOverlay" class="text-slate-500 italic">Run simulation to view step-by-step calculations.</div>
+                
+                <div id="calcContent" class="hidden space-y-6">
+                    <!-- USD Calcs -->
+                    <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                        <h4 class="text-cyan-400 font-medium mb-3 border-b border-slate-800 pb-2">Step A: USD Measure (Baseline)</h4>
+                        <ul class="text-sm text-slate-300 space-y-2 list-disc list-inside">
+                            <li><strong>Underlying Drift:</strong> Futures drift is 0.</li>
+                            <li><strong>Ito Correction:</strong> -½σ² = <span class="font-mono text-emerald-300" id="calc_ito"></span></li>
+                            <li><strong>Total SDE Drift (μ):</strong> <span class="font-mono text-emerald-300" id="calc_driftUSD"></span></li>
+                            <li><strong>Discount Factor:</strong> e<sup>-r_usd * T</sup> = <span class="font-mono text-emerald-300" id="calc_dfUSD"></span></li>
+                        </ul>
+                    </div>
+
+                    <!-- GBP Calcs -->
+                    <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                        <h4 class="text-cyan-400 font-medium mb-3 border-b border-slate-800 pb-2">Step B: GBP Measure Conversion</h4>
+                        <ul class="text-sm text-slate-300 space-y-2 list-disc list-inside">
+                            <li><strong>Quanto Adjustment:</strong> -Cov(S, GBP) = <span class="font-mono text-emerald-300" id="calc_qGBP"></span></li>
+                            <li><strong>New SDE Drift (μ):</strong> Quanto Adj + Ito = <span class="font-mono text-emerald-300" id="calc_driftGBP"></span></li>
+                            <li><strong>Exchange Rate Drift:</strong> (r_gbp - r_usd) - ½σ_x² = <span class="font-mono text-emerald-300" id="calc_driftXGBP"></span></li>
+                            <li><strong>GBP Discount Factor:</strong> e<sup>-r_gbp * T</sup> = <span class="font-mono text-emerald-300" id="calc_dfGBP"></span></li>
+                        </ul>
+                    </div>
+
+                    <!-- NOK Calcs -->
+                    <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                        <h4 class="text-cyan-400 font-medium mb-3 border-b border-slate-800 pb-2">Step C: NOK Measure Conversion</h4>
+                        <ul class="text-sm text-slate-300 space-y-2 list-disc list-inside">
+                            <li><strong>Quanto Adjustment:</strong> -Cov(S, NOK) = <span class="font-mono text-emerald-300" id="calc_qNOK"></span></li>
+                            <li><strong>New SDE Drift (μ):</strong> Quanto Adj + Ito = <span class="font-mono text-emerald-300" id="calc_driftNOK"></span></li>
+                            <li><strong>Exchange Rate Drift:</strong> (r_nok - r_usd) - ½σ_y² = <span class="font-mono text-emerald-300" id="calc_driftXNOK"></span></li>
+                            <li><strong>NOK Discount Factor:</strong> e<sup>-r_nok * T</sup> = <span class="font-mono text-emerald-300" id="calc_dfNOK"></span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTOR 4: Binomial Tree Representation -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-xl relative overflow-hidden">
+            <button onclick="toggleSection('sec4', 'icon4')" class="w-full px-6 py-4 flex justify-between items-center bg-slate-800/40 hover:bg-slate-800/80 text-slate-200 transition-colors rounded-t-xl focus:outline-none">
+                <h2 class="text-lg font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    4. Binomial Tree & Shift in Risk-Neutral Probabilities (2-Step)
+                </h2>
+                <svg id="icon4" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform rotate-180"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div id="sec4" class="p-6 border-t border-slate-800">
+                <div id="treeOverlay" class="text-slate-500 italic">Run simulation to construct the binomial tree.</div>
+                
+                <div id="treeContent" class="hidden flex flex-col lg:flex-row gap-8">
+                    <!-- Probability Calculations -->
+                    <div class="lg:w-1/3 space-y-4">
+                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                            <h4 class="text-cyan-400 font-medium mb-3 border-b border-slate-800 pb-2 text-sm">Tree Mechanics (Δt = 0.5)</h4>
+                            <ul class="text-sm text-slate-300 space-y-2">
+                                <li>Up Factor (u): <span class="font-mono text-emerald-300 cursor-pointer border-b border-dashed border-emerald-400/50 hover:text-emerald-200 hover:border-emerald-200 transition-colors" onclick="showDetails('u')" id="calc_u" title="Click for details"></span></li>
+                                <li>Down Factor (d): <span class="font-mono text-emerald-300 cursor-pointer border-b border-dashed border-emerald-400/50 hover:text-emerald-200 hover:border-emerald-200 transition-colors" onclick="showDetails('d')" id="calc_d" title="Click for details"></span></li>
+                                <li class="text-xs text-slate-500 mt-2">Notice: The tree nodes (prices) remain identical across measures. Only the probabilities change.</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                            <h4 class="text-cyan-400 font-medium mb-3 border-b border-slate-800 pb-2 text-sm">Risk-Neutral Probs (Up State)</h4>
+                            <ul class="text-sm text-slate-300 space-y-3">
+                                <li>
+                                    <div class="text-slate-400 text-xs">Baseline (USD Futures, drift=0)</div>
+                                    p_USD = (1 - d) / (u - d) = <span class="font-mono text-cyan-300 font-bold cursor-pointer border-b border-dashed border-cyan-400/50 hover:text-cyan-100 hover:border-cyan-100 transition-colors" onclick="showDetails('p_USD')" id="tree_p_USD" title="Click for details"></span>
+                                </li>
+                                <li class="pt-2 border-t border-slate-800">
+                                    <div class="text-slate-400 text-xs">Under GBP (Quanto drift: -Cov_GBP)</div>
+                                    p_GBP = (e<sup>-Cov·Δt</sup> - d) / (u - d) = <span class="font-mono text-cyan-300 font-bold cursor-pointer border-b border-dashed border-cyan-400/50 hover:text-cyan-100 hover:border-cyan-100 transition-colors" onclick="showDetails('p_GBP')" id="tree_p_GBP" title="Click for details"></span>
+                                </li>
+                                <li class="pt-2 border-t border-slate-800">
+                                    <div class="text-slate-400 text-xs">Under NOK (Quanto drift: -Cov_NOK)</div>
+                                    p_NOK = (e<sup>-Cov·Δt</sup> - d) / (u - d) = <span class="font-mono text-cyan-300 font-bold cursor-pointer border-b border-dashed border-cyan-400/50 hover:text-cyan-100 hover:border-cyan-100 transition-colors" onclick="showDetails('p_NOK')" id="tree_p_NOK" title="Click for details"></span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Visual Tree -->
+                    <div class="lg:w-2/3 bg-slate-950 border border-slate-800 rounded-lg p-6 flex justify-center items-center overflow-x-auto relative min-h-[300px]">
+                        <!-- SVG Connecting Lines -->
+                        <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;">
+                            <!-- t=0 to t=0.5 lines -->
+                            <line x1="15%" y1="50%" x2="45%" y2="25%" class="tree-line" />
+                            <line x1="15%" y1="50%" x2="45%" y2="75%" class="tree-line" />
+                            <!-- t=0.5 up to t=1 lines -->
+                            <line x1="55%" y1="25%" x2="85%" y2="10%" class="tree-line" />
+                            <line x1="55%" y1="25%" x2="85%" y2="50%" class="tree-line" />
+                            <!-- t=0.5 down to t=1 lines -->
+                            <line x1="55%" y1="75%" x2="85%" y2="50%" class="tree-line" />
+                            <line x1="55%" y1="75%" x2="85%" y2="90%" class="tree-line" />
+                        </svg>
+
+                        <div class="w-full flex justify-between items-center relative z-10 font-mono text-sm px-4">
+                            <!-- t=0 -->
+                            <div class="flex flex-col items-center">
+                                <div class="text-slate-500 text-xs mb-2 font-sans">t = 0.0</div>
+                                <div class="bg-slate-900 border-2 border-slate-700 text-emerald-400 px-3 py-2 rounded-lg shadow-lg w-24 text-center">
+                                    <span id="node_0"></span>
+                                </div>
+                            </div>
+
+                            <!-- t=0.5 -->
+                            <div class="flex flex-col justify-between h-[200px]">
+                                <div class="flex flex-col items-center">
+                                    <div class="text-slate-500 text-xs mb-2 font-sans">t = 0.5 (Up)</div>
+                                    <div class="bg-slate-900 border-2 border-slate-700 text-emerald-400 px-3 py-2 rounded-lg shadow-lg w-24 text-center">
+                                        <span id="node_u"></span>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div class="bg-slate-900 border-2 border-slate-700 text-emerald-400 px-3 py-2 rounded-lg shadow-lg w-24 text-center">
+                                        <span id="node_d"></span>
+                                    </div>
+                                    <div class="text-slate-500 text-xs mt-2 font-sans">t = 0.5 (Dn)</div>
+                                </div>
+                            </div>
+
+                            <!-- t=1.0 -->
+                            <div class="flex flex-col justify-between h-[300px]">
+                                <div class="flex flex-col items-center">
+                                    <div class="text-slate-500 text-xs mb-2 font-sans">t = 1.0 (UU)</div>
+                                    <div class="bg-slate-900 border-2 border-slate-700 text-emerald-400 px-3 py-2 rounded-lg shadow-lg w-24 text-center">
+                                        <span id="node_uu"></span>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div class="bg-slate-900 border-2 border-slate-700 text-emerald-400 px-3 py-2 rounded-lg shadow-lg w-24 text-center">
+                                        <span id="node_ud"></span>
+                                    </div>
+                                    <div class="text-slate-500 text-xs mt-2 font-sans">t = 1.0 (UD)</div>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div class="bg-slate-900 border-2 border-slate-700 text-emerald-400 px-3 py-2 rounded-lg shadow-lg w-24 text-center">
+                                        <span id="node_dd"></span>
+                                    </div>
+                                    <div class="text-slate-500 text-xs mt-2 font-sans">t = 1.0 (DD)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTOR 5: Pricing Results -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+            <button onclick="toggleSection('sec5', 'icon5')" class="w-full px-6 py-4 flex justify-between items-center bg-slate-800/40 hover:bg-slate-800/80 text-slate-200 transition-colors rounded-t-xl focus:outline-none">
+                <h2 class="text-lg font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16.01" y1="10" y2="10"/><line x1="16" x2="16.01" y1="14" y2="14"/><line x1="16" x2="16.01" y1="18" y2="18"/><path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>
+                    5. Pricing Results
+                </h2>
+                <svg id="icon5" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform rotate-180"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div id="sec5" class="p-6 border-t border-slate-800">
+                <div id="resultsOverlay" class="text-slate-500 italic">Run simulation to view pricing.</div>
+                
+                <div id="resultsContent" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                            <div class="text-sm text-slate-400 mb-1">USD Numeraire Measure</div>
+                            <div class="text-3xl font-semibold text-slate-100 flex items-baseline gap-1">
+                                <span class="text-emerald-400 text-lg">$</span><span id="priceUSD">0.0000</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-2">Std Error: ±<span id="seUSD">0.00000</span></div>
+                        </div>
+                        <div class="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                            <div class="text-sm text-slate-400 mb-1">GBP Numeraire Measure</div>
+                            <div class="text-3xl font-semibold text-slate-100 flex items-baseline gap-1">
+                                <span class="text-emerald-400 text-lg">$</span><span id="priceGBP">0.0000</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-2">Std Error: ±<span id="seGBP">0.00000</span></div>
+                        </div>
+                        <div class="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                            <div class="text-sm text-slate-400 mb-1">NOK Numeraire Measure</div>
+                            <div class="text-3xl font-semibold text-slate-100 flex items-baseline gap-1">
+                                <span class="text-emerald-400 text-lg">$</span><span id="priceNOK">0.0000</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-2">Std Error: ±<span id="seNOK">0.00000</span></div>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-sm text-cyan-400/80 bg-cyan-950/20 p-3 rounded border border-cyan-900/50">
+                        Notice: By the Fundamental Theorem of Asset Pricing, the USD option price remains invariant regardless of the choice of numeraire. Minor variations are purely Monte Carlo sampling noise.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTOR 6: Framework -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-xl">
+            <button onclick="toggleSection('sec6', 'icon6')" class="w-full px-6 py-4 flex justify-between items-center bg-slate-800/40 hover:bg-slate-800/80 text-slate-200 transition-colors rounded-t-xl focus:outline-none">
+                <h2 class="text-lg font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-pink-500"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    6. Formula, Theorem & Framework
+                </h2>
+                <svg id="icon6" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div id="sec6" class="p-6 border-t border-slate-800 hidden accordion-content">
+                <div class="space-y-6 text-slate-300 leading-relaxed text-sm">
+                    <section>
+                        <h3 class="text-base font-medium text-slate-200 mb-2">A. The Actual GBM & Discrete Simulation</h3>
+                        <p>A variable evolving according to Geometric Brownian Motion follows the SDE: <span class="font-serif italic">dS<sub>t</sub> = μ S<sub>t</sub> dt + σ S<sub>t</sub> dW<sub>t</sub></span>.</p>
+                        <p class="mt-2">Applying Ito's Lemma to <span class="font-serif italic">ln(S<sub>t</sub>)</span> yields the discrete Monte Carlo formula for interval <span class="font-serif italic">Δt</span>:</p>
+                        <div class="math-block bg-slate-950 p-4 rounded-lg my-2 font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                            S<sub>t+Δt</sub> = S<sub>t</sub> exp( (μ - ½σ²)Δt + σ√Δt Z )
+                        </div>
+                    </section>
+                    <section>
+                        <h3 class="text-base font-medium text-slate-200 mb-2">B. USD Risk-Neutral Measure (<span class="font-serif">ℚ<sup class="text-xs">USD</sup></span>)</h3>
+                        <p>Under the domestic risk-neutral measure, the drift <span class="font-serif italic">μ</span> of a futures contract is zero.</p>
+                        <div class="math-block bg-slate-950 p-4 rounded-lg my-2 font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                            SDE: dS<sub>t</sub> / S<sub>t</sub> = 0 dt + σ<sub>S</sub> dW<sub>t</sub><sup class="text-xs">S, USD</sup><br>
+                            Valuation: V<sub>0</sub> = e<sup>-r<sub>USD</sub>T</sup> E<sup class="text-xs">ℚ_USD</sup> [ max(S<sub>T</sub> - K, 0) ]
+                        </div>
+                    </section>
+                    <section>
+                        <h3 class="text-base font-medium text-slate-200 mb-2">C. Change of Numeraire to Foreign Currency (e.g., GBP)</h3>
+                        <p>By Girsanov's Theorem, switching the numeraire to the foreign money market account introduces a Quanto Adjustment drift shift to the futures process equal to its covariance with the exchange rate:</p>
+                        <div class="math-block bg-slate-950 p-4 rounded-lg my-2 font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                            SDE: dS<sub>t</sub> / S<sub>t</sub> = -Cov(S, E<sub>FX</sub>) dt + σ<sub>S</sub> dW<sub>t</sub><sup class="text-xs">S, FX</sup><br>
+                            Valuation: V<sub>0</sub> = (1 / E<sub>0</sub>) e<sup>-r<sub>FX</sub>T</sup> E<sup class="text-xs">ℚ_FX</sup> [ max(S<sub>T</sub> - K, 0) × E<sub>T</sub> ]
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Modal (Hidden by default) -->
+        <div id="detailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300" onclick="if(event.target === this) closeModal()">
+            <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform scale-95 transition-transform duration-300" id="detailModalContentBox">
+                <div class="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-800/50">
+                    <h3 id="modalTitle" class="text-lg font-medium text-slate-100 flex items-center gap-2">Calculation Details</h3>
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-white focus:outline-none transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div id="modalBody" class="p-6 text-slate-300 space-y-4">
+                    <!-- Dynamic Content Injected Here -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Store simulation data for the modal
+        let simData = null;
+
+        // Collapsible UI Logic
+        function toggleSection(id, iconId) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById(iconId);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                el.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        // Chart.js Setup
+        let chartInstance = null;
+        let chartDataSets = { USD: [], GBP: [], NOK: [] };
+        let currentTab = 'USD';
+        const ctx = document.getElementById('gbmChart').getContext('2d');
+
+        function initChart() {
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    elements: { point: { radius: 0 }, line: { borderWidth: 1 } },
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, title: {display: true, text: 'Time Steps', color:'#64748b'} },
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, title: {display: true, text: 'Brent Price Path', color:'#64748b'} }
+                    }
+                }
+            });
+        }
+        initChart();
+
+        function switchTab(measure) {
+            currentTab = measure;
+            // Update Tab UI
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update Chart Data
+            if(chartInstance && chartDataSets[measure].length > 0) {
+                chartInstance.data.datasets = chartDataSets[measure];
+                if(measure === 'USD') chartInstance.options.scales.y.title.text = 'Brent Price in USD';
+                if(measure === 'GBP') chartInstance.options.scales.y.title.text = 'Brent Price in GBP';
+                if(measure === 'NOK') chartInstance.options.scales.y.title.text = 'Brent Price in NOK';
+                chartInstance.update();
+            }
+        }
+
+        // Box-Muller generator
+        function generateNormals(n) {
+            const z = new Float32Array(n);
+            for (let i = 0; i < n; i += 2) {
+                let u = 0, v = 0;
+                while (u === 0) u = Math.random();
+                while (v === 0) v = Math.random();
+                const r = Math.sqrt(-2.0 * Math.log(u));
+                const theta = 2.0 * Math.PI * v;
+                z[i] = r * Math.cos(theta);
+                if (i + 1 < n) z[i + 1] = r * Math.sin(theta);
+            }
+            return z;
+        }
+
+        // Simulation Run
+        const runBtn = document.getElementById('runBtn');
+        runBtn.addEventListener('click', () => {
+            runBtn.disabled = true;
+            document.getElementById('playIcon').classList.add('hidden');
+            document.getElementById('spinIcon').classList.remove('hidden');
+            document.getElementById('btnText').innerText = 'Simulating...';
+
+            setTimeout(() => {
+                // 1. Read parameters
+                const S0 = parseFloat(document.getElementById('S0').value);
+                const K = parseFloat(document.getElementById('K').value);
+                const T = parseFloat(document.getElementById('T').value);
+                const N = parseInt(document.getElementById('N').value);
+                
+                const r_USD = parseFloat(document.getElementById('r_USD').value);
+                const r_GBP = parseFloat(document.getElementById('r_GBP').value);
+                const r_NOK = parseFloat(document.getElementById('r_NOK').value);
+                
+                const vol_S = parseFloat(document.getElementById('vol_S').value);
+                const vol_GBP = parseFloat(document.getElementById('vol_GBP').value);
+                const X_GBP0 = parseFloat(document.getElementById('X_GBP0').value);
+                
+                const vol_NOK = parseFloat(document.getElementById('vol_NOK').value);
+                const X_NOK0 = parseFloat(document.getElementById('X_NOK0').value);
+                
+                const cov_GBP = parseFloat(document.getElementById('cov_GBP').value);
+                const cov_NOK = parseFloat(document.getElementById('cov_NOK').value);
+
+                // Derived terms
+                const rho_GBP = cov_GBP / (vol_S * vol_GBP);
+                const rho_NOK = cov_NOK / (vol_S * vol_NOK);
+                const ito_correction = -0.5 * vol_S * vol_S;
+
+                const drift_S_USD = ito_correction; 
+                const drift_S_GBP = -cov_GBP + ito_correction; 
+                const drift_X_GBP = (r_GBP - r_USD) - 0.5 * vol_GBP * vol_GBP; 
+                const drift_S_NOK = -cov_NOK + ito_correction; 
+                const drift_X_NOK = (r_NOK - r_USD) - 0.5 * vol_NOK * vol_NOK;
+
+                const df_USD = Math.exp(-r_USD * T);
+                const df_GBP = Math.exp(-r_GBP * T);
+                const df_NOK = Math.exp(-r_NOK * T);
+                const sqrtT = Math.sqrt(T);
+
+                // Update Step-by-Step UI
+                document.getElementById('calcOverlay').classList.add('hidden');
+                document.getElementById('calcContent').classList.remove('hidden');
+                
+                document.getElementById('calc_ito').innerText = ito_correction.toFixed(6);
+                document.getElementById('calc_driftUSD').innerText = drift_S_USD.toFixed(6);
+                document.getElementById('calc_dfUSD').innerText = df_USD.toFixed(6);
+
+                document.getElementById('calc_qGBP').innerText = (-cov_GBP).toFixed(8);
+                document.getElementById('calc_driftGBP').innerText = drift_S_GBP.toFixed(6);
+                document.getElementById('calc_driftXGBP').innerText = drift_X_GBP.toFixed(6);
+                document.getElementById('calc_dfGBP').innerText = df_GBP.toFixed(6);
+
+                document.getElementById('calc_qNOK').innerText = (-cov_NOK).toFixed(8);
+                document.getElementById('calc_driftNOK').innerText = drift_S_NOK.toFixed(6);
+                document.getElementById('calc_driftXNOK').innerText = drift_X_NOK.toFixed(6);
+                document.getElementById('calc_dfNOK').innerText = df_NOK.toFixed(6);
+
+                // ==========================================
+                // Sector 4: Binomial Tree Representation Logic
+                // ==========================================
+                const dt_tree = 0.5; // t=0, t=0.5, t=1
+                
+                // CRR Tree formulation:
+                const u_tree = Math.exp(vol_S * Math.sqrt(dt_tree));
+                const d_tree = Math.exp(-vol_S * Math.sqrt(dt_tree)); // same as 1/u_tree
+                
+                // Base risk-neutral prob (drift=0 for futures)
+                // Expected Value: p*u + (1-p)*d = e^{0 * dt} = 1
+                const p_USD = (1 - d_tree) / (u_tree - d_tree);
+
+                // GBP measure risk-neutral prob (Quanto drift: -cov_GBP)
+                // Expected Value: p*u + (1-p)*d = e^{-cov_GBP * dt}
+                const p_GBP = (Math.exp(-cov_GBP * dt_tree) - d_tree) / (u_tree - d_tree);
+
+                // NOK measure risk-neutral prob (Quanto drift: -cov_NOK)
+                const p_NOK = (Math.exp(-cov_NOK * dt_tree) - d_tree) / (u_tree - d_tree);
+
+                // Node values (independent of measure)
+                const node_S_u = S0 * u_tree;
+                const node_S_d = S0 * d_tree;
+                const node_S_uu = S0 * u_tree * u_tree;
+                const node_S_ud = S0 * u_tree * d_tree;
+                const node_S_dd = S0 * d_tree * d_tree;
+
+                // Update UI for Binomial Tree
+                document.getElementById('treeOverlay').classList.add('hidden');
+                document.getElementById('treeContent').classList.remove('hidden');
+
+                document.getElementById('calc_u').innerText = u_tree.toFixed(4);
+                document.getElementById('calc_d').innerText = d_tree.toFixed(4);
+                
+                document.getElementById('tree_p_USD').innerText = p_USD.toFixed(5);
+                document.getElementById('tree_p_GBP').innerText = p_GBP.toFixed(5);
+                document.getElementById('tree_p_NOK').innerText = p_NOK.toFixed(5);
+
+                document.getElementById('node_0').innerText = S0.toFixed(2);
+                document.getElementById('node_u').innerText = node_S_u.toFixed(2);
+                document.getElementById('node_d').innerText = node_S_d.toFixed(2);
+                document.getElementById('node_uu').innerText = node_S_uu.toFixed(2);
+                document.getElementById('node_ud').innerText = node_S_ud.toFixed(2);
+                document.getElementById('node_dd').innerText = node_S_dd.toFixed(2);
+
+                // Save simulation data for modal detail views
+                simData = {
+                    vol_S: vol_S,
+                    dt_tree: dt_tree,
+                    u_tree: u_tree,
+                    d_tree: d_tree,
+                    cov_GBP: cov_GBP,
+                    cov_NOK: cov_NOK,
+                    p_USD: p_USD,
+                    p_GBP: p_GBP,
+                    p_NOK: p_NOK
+                };
+
+                // ==========================================
+                // MAIN PRICING LOOP
+                // ==========================================
+                let sumUSD = 0, sumSqUSD = 0;
+                let sumGBP = 0, sumSqGBP = 0;
+                let sumNOK = 0, sumSqNOK = 0;
+
+                const Z1 = generateNormals(N);
+                const Z2 = generateNormals(N);
+                const Z3 = generateNormals(N);
+
+                for (let i = 0; i < N; i++) {
+                    const z_S = Z1[i];
+                    
+                    // USD
+                    const payoffUSD = Math.max((S0 * Math.exp(drift_S_USD * T + vol_S * sqrtT * z_S)) - K, 0);
+                    sumUSD += payoffUSD; sumSqUSD += payoffUSD * payoffUSD;
+
+                    // GBP
+                    const z_X_GBP = rho_GBP * z_S + Math.sqrt(1 - rho_GBP * rho_GBP) * Z2[i];
+                    const payoffGBP = Math.max((S0 * Math.exp(drift_S_GBP * T + vol_S * sqrtT * z_S)) - K, 0) * (X_GBP0 * Math.exp(drift_X_GBP * T + vol_GBP * sqrtT * z_X_GBP));
+                    sumGBP += payoffGBP; sumSqGBP += payoffGBP * payoffGBP;
+
+                    // NOK
+                    const z_X_NOK = rho_NOK * z_S + Math.sqrt(1 - rho_NOK * rho_NOK) * Z3[i];
+                    const payoffNOK = Math.max((S0 * Math.exp(drift_S_NOK * T + vol_S * sqrtT * z_S)) - K, 0) * (X_NOK0 * Math.exp(drift_X_NOK * T + vol_NOK * sqrtT * z_X_NOK));
+                    sumNOK += payoffNOK; sumSqNOK += payoffNOK * payoffNOK;
+                }
+
+                // SUB-LOOP for GRAPHING
+                const numPathsToPlot = N;
+                const steps = 50;
+                const dt = T / steps;
+                const sqrtdt = Math.sqrt(dt);
+                
+                chartDataSets = { USD: [], GBP: [], NOK: [] };
+                let labels = [];
+                for(let j=0; j<=steps; j++) labels.push((j*dt).toFixed(2));
+
+                for(let p=0; p<numPathsToPlot; p++) {
+                    let pathUSD = [S0]; 
+                    let pathGBP = [S0 * X_GBP0]; 
+                    let pathNOK = [S0 * X_NOK0];
+
+                    let curS_USD = S0, curS_GBP = S0, curS_NOK = S0;
+                    let curX_GBP = X_GBP0, curX_NOK = X_NOK0;
+
+                    for(let s=1; s<=steps; s++) {
+                        let u = 0, v = 0;
+                        while (u === 0) u = Math.random();
+                        while (v === 0) v = Math.random();
+                        let z_S = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                        
+                        u = 0; v = 0;
+                        while (u === 0) u = Math.random();
+                        while (v === 0) v = Math.random();
+                        let z_2 = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                        let z_3 = Math.sqrt(-2.0 * Math.log(u)) * Math.sin(2.0 * Math.PI * v);
+
+                        let z_X_GBP = rho_GBP * z_S + Math.sqrt(1 - rho_GBP * rho_GBP) * z_2;
+                        let z_X_NOK = rho_NOK * z_S + Math.sqrt(1 - rho_NOK * rho_NOK) * z_3;
+
+                        curS_USD *= Math.exp(drift_S_USD * dt + vol_S * sqrtdt * z_S);
+                        curS_GBP *= Math.exp(drift_S_GBP * dt + vol_S * sqrtdt * z_S);
+                        curX_GBP *= Math.exp(drift_X_GBP * dt + vol_GBP * sqrtdt * z_X_GBP);
+                        curS_NOK *= Math.exp(drift_S_NOK * dt + vol_S * sqrtdt * z_S);
+                        curX_NOK *= Math.exp(drift_X_NOK * dt + vol_NOK * sqrtdt * z_X_NOK);
+
+                        pathUSD.push(curS_USD); 
+                        pathGBP.push(curS_GBP * curX_GBP); 
+                        pathNOK.push(curS_NOK * curX_NOK); 
+                    }
+
+                    chartDataSets.USD.push({ data: pathUSD, borderColor: 'rgba(6, 182, 212, 0.4)' });
+                    chartDataSets.GBP.push({ data: pathGBP, borderColor: 'rgba(168, 85, 247, 0.4)' });
+                    chartDataSets.NOK.push({ data: pathNOK, borderColor: 'rgba(234, 179, 8, 0.4)' });
+                }
+
+                // Update Chart UI
+                document.getElementById('chartOverlay').classList.add('hidden');
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets = chartDataSets[currentTab];
+                if(currentTab === 'USD') chartInstance.options.scales.y.title.text = 'Brent Price in USD';
+                if(currentTab === 'GBP') chartInstance.options.scales.y.title.text = 'Brent Price in GBP';
+                if(currentTab === 'NOK') chartInstance.options.scales.y.title.text = 'Brent Price in NOK';
+                chartInstance.update();
+
+                // Update Results UI
+                document.getElementById('resultsOverlay').classList.add('hidden');
+                document.getElementById('resultsContent').classList.remove('hidden');
+
+                const meanUSD = sumUSD / N;
+                document.getElementById('priceUSD').innerText = (df_USD * meanUSD).toFixed(4);
+                document.getElementById('seUSD').innerText = (df_USD * Math.sqrt((sumSqUSD / N - meanUSD * meanUSD) / N)).toFixed(5);
+
+                const meanGBP = sumGBP / N;
+                document.getElementById('priceGBP').innerText = ((1 / X_GBP0) * df_GBP * meanGBP).toFixed(4);
+                document.getElementById('seGBP').innerText = ((1 / X_GBP0) * df_GBP * Math.sqrt((sumSqGBP / N - meanGBP * meanGBP) / N)).toFixed(5);
+
+                const meanNOK = sumNOK / N;
+                document.getElementById('priceNOK').innerText = ((1 / X_NOK0) * df_NOK * meanNOK).toFixed(4);
+                document.getElementById('seNOK').innerText = ((1 / X_NOK0) * df_NOK * Math.sqrt((sumSqNOK / N - meanNOK * meanNOK) / N)).toFixed(5);
+
+                // Reset Button
+                runBtn.disabled = false;
+                document.getElementById('playIcon').classList.remove('hidden');
+                document.getElementById('spinIcon').classList.add('hidden');
+                document.getElementById('btnText').innerText = 'Run Monte Carlo Simulation';
+            }, 50);
+        });
+
+        // ==========================================
+        // Modal Zoom In/Out Logic
+        // ==========================================
+        function showDetails(type) {
+            if (!simData) return; // Ignore clicks if simulation hasn't run
+
+            const modal = document.getElementById('detailModal');
+            const box = document.getElementById('detailModalContentBox');
+            const title = document.getElementById('modalTitle');
+            const body = document.getElementById('modalBody');
+
+            let content = '';
+
+            if (type === 'u') {
+                title.innerHTML = 'Up Factor (u) Calculation';
+                content = `
+                    <p class="mb-2 text-sm">The Up factor defines the proportional increase in the asset price if an "up" state occurs. It depends on volatility and the time step.</p>
+                    <div class="math-block bg-slate-950 p-4 rounded-lg font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                        u = exp(σ<sub>S</sub> × √Δt)<br>
+                        u = exp(${simData.vol_S.toFixed(4)} × √0.5)<br>
+                        u = exp(${(simData.vol_S * Math.sqrt(simData.dt_tree)).toFixed(6)})<br>
+                        u = ${simData.u_tree.toFixed(6)}
+                    </div>
+                `;
+            } else if (type === 'd') {
+                title.innerHTML = 'Down Factor (d) Calculation';
+                content = `
+                    <p class="mb-2 text-sm">The Down factor defines the proportional decrease. In the Cox-Ross-Rubinstein (CRR) model, it is the reciprocal of the Up factor.</p>
+                    <div class="math-block bg-slate-950 p-4 rounded-lg font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                        d = exp(-σ<sub>S</sub> × √Δt) &nbsp;&nbsp; OR &nbsp;&nbsp; d = 1 / u<br>
+                        d = 1 / ${simData.u_tree.toFixed(6)}<br>
+                        d = ${simData.d_tree.toFixed(6)}
+                    </div>
+                `;
+            } else if (type === 'p_USD') {
+                title.innerHTML = 'USD Risk-Neutral Prob. (p_USD)';
+                content = `
+                    <p class="mb-2 text-sm">Under the domestic (USD) measure, Brent Crude futures have a drift of exactly 0. The expected growth rate is 1.0.</p>
+                    <div class="math-block bg-slate-950 p-4 rounded-lg font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                        p<sub>USD</sub> = [ exp(μ<sub>USD</sub> × Δt) - d ] / (u - d)<br>
+                        p<sub>USD</sub> = [ exp(0 × 0.5) - d ] / (u - d)<br>
+                        p<sub>USD</sub> = [ 1 - ${simData.d_tree.toFixed(4)} ] / (${simData.u_tree.toFixed(4)} - ${simData.d_tree.toFixed(4)})<br>
+                        p<sub>USD</sub> = ${ (1 - simData.d_tree).toFixed(6) } / ${ (simData.u_tree - simData.d_tree).toFixed(6) }<br>
+                        p<sub>USD</sub> = ${simData.p_USD.toFixed(6)}
+                    </div>
+                `;
+            } else if (type === 'p_GBP') {
+                title.innerHTML = 'GBP Risk-Neutral Prob. (p_GBP)';
+                content = `
+                    <p class="mb-2 text-sm">Under the GBP measure, a Quanto adjustment alters the futures drift to compensate for covariance with the GBP/USD exchange rate.</p>
+                    <div class="math-block bg-slate-950 p-4 rounded-lg font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                        μ<sub>GBP</sub> = -Cov(S, GBP/USD)<br>
+                        p<sub>GBP</sub> = [ exp(μ<sub>GBP</sub> × Δt) - d ] / (u - d)<br>
+                        p<sub>GBP</sub> = [ exp(-(${simData.cov_GBP.toFixed(8)}) × 0.5) - ${simData.d_tree.toFixed(4)} ] / (${simData.u_tree.toFixed(4)} - ${simData.d_tree.toFixed(4)})<br>
+                        p<sub>GBP</sub> = [ ${Math.exp(-simData.cov_GBP * simData.dt_tree).toFixed(6)} - ${simData.d_tree.toFixed(4)} ] / ${(simData.u_tree - simData.d_tree).toFixed(4)}<br>
+                        p<sub>GBP</sub> = ${simData.p_GBP.toFixed(6)}
+                    </div>
+                `;
+            } else if (type === 'p_NOK') {
+                title.innerHTML = 'NOK Risk-Neutral Prob. (p_NOK)';
+                content = `
+                    <p class="mb-2 text-sm">Under the NOK measure, the Quanto adjustment shifts the drift based on covariance with the NOK/USD exchange rate.</p>
+                    <div class="math-block bg-slate-950 p-4 rounded-lg font-serif text-cyan-200 border border-slate-800 overflow-x-auto whitespace-nowrap">
+                        μ<sub>NOK</sub> = -Cov(S, NOK/USD)<br>
+                        p<sub>NOK</sub> = [ exp(μ<sub>NOK</sub> × Δt) - d ] / (u - d)<br>
+                        p<sub>NOK</sub> = [ exp(-(${simData.cov_NOK.toFixed(8)}) × 0.5) - ${simData.d_tree.toFixed(4)} ] / (${simData.u_tree.toFixed(4)} - ${simData.d_tree.toFixed(4)})<br>
+                        p<sub>NOK</sub> = [ ${Math.exp(-simData.cov_NOK * simData.dt_tree).toFixed(6)} - ${simData.d_tree.toFixed(4)} ] / ${(simData.u_tree - simData.d_tree).toFixed(4)}<br>
+                        p<sub>NOK</sub> = ${simData.p_NOK.toFixed(6)}
+                    </div>
+                `;
+            }
+
+            body.innerHTML = content;
+            modal.classList.remove('hidden');
+            
+            // Trigger animation
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+                box.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('detailModal');
+            const box = document.getElementById('detailModalContentBox');
+            
+            modal.classList.add('opacity-0');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+    </script>
+</body>
+</html>
